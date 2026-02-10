@@ -1,4 +1,4 @@
-# AI Analytics Engine
+# Statistical Engine
 
 **A production-grade, domain-agnostic analytics platform that transforms raw business data into deep statistical insights through automation, interactive exploration, and intelligent reasoning.**
 
