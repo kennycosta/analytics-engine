@@ -72,6 +72,36 @@ class InsightGenerator:
             )
         
         return insights
+
+    @staticmethod
+    def generate_dataset_summary(profile: DatasetProfile) -> str:
+        """Generate a concise prose summary for dataset health cards."""
+        total_rows = profile.row_count
+        total_cols = profile.column_count
+        completeness_pct = profile.completeness_score * 100
+        dominant_type = None
+        if profile.column_types:
+            dominant_type = max(profile.column_types.items(), key=lambda item: item[1])[0]
+
+        quality_label = (
+            "excellent" if completeness_pct >= 95
+            else "strong" if completeness_pct >= 85
+            else "workable" if completeness_pct >= 70
+            else "fragile"
+        )
+
+        summary = [
+            f"{profile.name} spans {total_rows:,} rows across {total_cols} columns",
+            f"with {quality_label} completeness at {completeness_pct:.1f}%.",
+        ]
+
+        if dominant_type:
+            summary.append(f"Most fields are {dominant_type.lower()} features.")
+
+        if profile.quality_issues:
+            summary.append("Key data quality alerts: " + "; ".join(profile.quality_issues[:2]))
+
+        return " ".join(summary)
     
     @staticmethod
     def generate_column_insights(profile: ColumnProfile) -> List[str]:

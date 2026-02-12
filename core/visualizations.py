@@ -154,7 +154,9 @@ def create_time_series_plot(
     df: pd.DataFrame,
     date_col: str,
     value_cols: List[str],
-    title: str = "Time Series"
+    title: str = "Time Series",
+    chart_type: str = "line",
+    rolling_window: Optional[int] = None,
 ) -> go.Figure:
     """
     Create time series line plot.
@@ -171,11 +173,26 @@ def create_time_series_plot(
     fig = go.Figure()
     
     for col in value_cols:
+        series = df[col]
+        if rolling_window and rolling_window > 1:
+            series = series.rolling(window=rolling_window, min_periods=1).mean()
+
+        trace_kwargs = {
+            "x": df[date_col],
+            "y": series,
+            "name": col,
+            "mode": "lines+markers",
+        }
+
+        if chart_type == "area":
+            trace_kwargs["fill"] = "tozeroy"
+            trace_kwargs["mode"] = "lines"
+        elif chart_type == "stacked":
+            trace_kwargs["stackgroup"] = "one"
+            trace_kwargs["mode"] = "lines"
+
         fig.add_trace(go.Scatter(
-            x=df[date_col],
-            y=df[col],
-            name=col,
-            mode='lines+markers'
+            **trace_kwargs
         ))
     
     fig.update_layout(

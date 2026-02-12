@@ -81,7 +81,7 @@ def detect_column_type(series: pd.Series) -> ColumnType:
         return "numeric"
     
     # Check if it's categorical (low cardinality strings)
-    if pd.api.types.is_object_dtype(series) or pd.api.types.is_categorical_dtype(series):
+    if pd.api.types.is_object_dtype(series) or pd.api.types.is_string_dtype(series) or isinstance(series.dtype, pd.CategoricalDtype):
         non_null = series.dropna()
         if len(non_null) == 0:
             return "unknown"
@@ -292,7 +292,7 @@ def identify_data_quality_issues(df: pd.DataFrame) -> List[Dict[str, Any]]:
             })
 
     # Check for mixed types in object columns
-    for col in df.select_dtypes(include=["object"]).columns:
+    for col in df.select_dtypes(include=["object", "string"]).columns:
         type_set = set(type(x).__name__ for x in df[col].dropna())
         if len(type_set) > 1:
             issues.append({
