@@ -20,7 +20,8 @@ dependencies = [
     "openpyxl (>=3.1.5,<4.0.0)",
     "pymysql (>=1.1.2,<2.0.0)",
     "psycopg2-binary (>=2.9.11,<3.0.0)",
-    "pyodbc (>=5.1.0,<6.0.0)"
+    "pyodbc (>=5.1.0,<6.0.0)",
+    "pyproj (>=3.7.0,<4.0.0)"
 ]
 
 [tool.poetry]

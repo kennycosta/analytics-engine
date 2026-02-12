@@ -10,7 +10,8 @@ from core.statistics import (
     linear_regression_analysis,
     independent_t_test,
     anova_test,
-    detect_trend
+    detect_trend,
+    detect_outliers_zscore,
 )
 
 
@@ -194,3 +195,20 @@ class TestTrendDetection:
         result = detect_trend(series)
         
         assert result['trend'] == 'insufficient_data'
+
+
+class TestOutlierDetection:
+    """Tests for Z-score based outlier detection."""
+
+    def test_detect_outliers_zscore_flags_extreme_values(self):
+        series = pd.Series([10, 12, 11, 13, 50])
+        outliers = detect_outliers_zscore(series, threshold=2.0)
+
+        assert len(outliers) == 1
+        assert outliers.iloc[0] == 50
+
+    def test_detect_outliers_zscore_handles_constant_series(self):
+        series = pd.Series([5, 5, 5, 5])
+        outliers = detect_outliers_zscore(series, threshold=1.5)
+
+        assert outliers.empty
