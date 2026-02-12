@@ -10,19 +10,48 @@ import pandas as pd
 
 from core.profiling import DatasetProfile, ColumnProfile
 from core.statistics import (
-    CorrelationResult, RegressionResult, TTestResult, 
-    ANOVAResult, detect_trend
+    CorrelationResult,
+    RegressionResult,
+    TTestResult,
+    ANOVAResult,
+    RankTestResult,
+    ChiSquareResult,
+    TwoWayANOVAResult,
+    TukeyHSDResult,
+    LeveneResult,
+    detect_trend,
 )
 
 
 class InsightGenerator:
     """
-    Generates human-readable insights from statistical analyses.
-    
-    Transforms technical metrics into actionable narratives that
-    non-technical users can understand and act upon.
+    Generates human-readable insights from statistical analyses and translates
+    technical metrics into action-ready narratives for non-technical users.
     """
-    
+
+    @staticmethod
+    def _describe_effect_size(value: float, metric: str = "cohen") -> str:
+        """Map numeric effect sizes to qualitative labels."""
+
+        if value is None or pd.isna(value):
+            return "not available"
+
+        abs_value = abs(value)
+        if metric == "cramer":
+            thresholds = (0.1, 0.3, 0.5)
+        elif metric == "rank":
+            thresholds = (0.1, 0.3, 0.5)
+        else:
+            thresholds = (0.2, 0.5, 0.8)
+
+        if abs_value < thresholds[0]:
+            return "negligible"
+        if abs_value < thresholds[1]:
+            return "small"
+        if abs_value < thresholds[2]:
+            return "medium"
+        return "large"
+
     @staticmethod
     def generate_dataset_overview(profile: DatasetProfile) -> List[str]:
         """
@@ -238,42 +267,131 @@ class InsightGenerator:
         """
         insights = []
         
-        # Mean comparison
-        diff = abs(result.group1_mean - result.group2_mean)
-        higher_group = result.group1_name if result.group1_mean > result.group2_mean else result.group2_name
-        
+        test_label = getattr(result, "test_name", "t-test")
+        diff = result.group1_mean - result.group2_mean
+        direction = result.group1_name if diff > 0 else result.group2_name
         insights.append(
-            f"Group '{higher_group}' has a higher mean "
-            f"(difference of {diff:.2f})."
+            f"{test_label} comparing '{result.group1_name}' vs '{result.group2_name}' shows "
+            f"a mean difference of {abs(diff):.2f} (higher in '{direction}')."
         )
+
+        verdict = "✓" if result.significant else "✗"
+        significance_text = "significant" if result.significant else "not significant"
+        insights.append(
+            f"{verdict} Difference is {significance_text} (t={result.t_statistic:.3f}, p={result.p_value:.4f})."
+        )
+
+        descriptor = InsightGenerator._describe_effect_size(result.effect_size)
+        size_value = "nan" if pd.isna(result.effect_size) else f"{result.effect_size:.3f}"
+        insights.append(f"Effect size is {descriptor} ({size_value}).")
         
-        # Statistical significance
-        if result.significant:
-            insights.append(
-                f"✓ Difference is statistically significant "
-                f"(t={result.t_statistic:.3f}, p={result.p_value:.4f})."
-            )
+        return insights
+
+    @staticmethod
+    def generate_rank_test_insights(result: RankTestResult) -> List[str]:
+        insights: List[str] = []
+        insights.append(
+            f"{result.test_name} indicates distributional differences between '{result.group1_name}' and "
+            f"'{result.group2_name}'."
+        )
+
+        verdict = "✓" if result.significant else "✗"
+        desc = "significant" if result.significant else "not significant"
+        insights.append(
+            f"{verdict} Result is {desc} ({result.statistic_name}={result.statistic_value:.3f}, p={result.p_value:.4f})."
+        )
+
+        descriptor = InsightGenerator._describe_effect_size(result.effect_size, metric="rank")
+        if descriptor == "not available":
+            insights.append("Effect size could not be computed reliably.")
         else:
             insights.append(
-                f"✗ Difference is not statistically significant "
-                f"(t={result.t_statistic:.3f}, p={result.p_value:.4f})."
+                f"Rank-based effect size suggests a {descriptor} shift (value={result.effect_size:.3f})."
             )
-        
-        # Effect size
-        effect_size = abs(result.effect_size)
-        if effect_size < 0.2:
-            magnitude = "negligible"
-        elif effect_size < 0.5:
-            magnitude = "small"
-        elif effect_size < 0.8:
-            magnitude = "medium"
-        else:
-            magnitude = "large"
-        
+
+        return insights
+
+    @staticmethod
+    def generate_chi_square_insights(result: ChiSquareResult) -> List[str]:
+        insights: List[str] = []
+        verdict = "✓" if result.significant else "✗"
+        desc = "associated" if result.significant else "not associated"
         insights.append(
-            f"Effect size (Cohen's d) is {magnitude} ({result.effect_size:.3f})."
+            f"{verdict} Variables '{result.variable1}' and '{result.variable2}' are {desc} "
+            f"(χ²={result.chi_square:.3f}, dof={result.dof}, p={result.p_value:.4f})."
         )
-        
+
+        descriptor = InsightGenerator._describe_effect_size(result.cramers_v, metric="cramer")
+        if descriptor == "not available":
+            insights.append("Unable to compute Cramer's V due to limited data.")
+        else:
+            insights.append(
+                f"Association strength is {descriptor} (Cramer's V={result.cramers_v:.3f})."
+            )
+
+        top_categories = result.contingency_table.sum(axis=1).sort_values(ascending=False).head(3)
+        if not top_categories.empty:
+            readable = ", ".join([f"{idx}: {val}" for idx, val in top_categories.items()])
+            insights.append(f"Most represented categories for '{result.variable1}': {readable}.")
+
+        return insights
+
+    @staticmethod
+    def generate_two_way_anova_insights(result: TwoWayANOVAResult) -> List[str]:
+        insights: List[str] = []
+        insights.append(
+            f"Two-way ANOVA on '{result.dependent_var}' evaluated factors '{result.factor_a}' and '{result.factor_b}'."
+        )
+
+        for label, significant in result.significant_effects.items():
+            effect_strength = InsightGenerator._describe_effect_size(result.effect_sizes.get(label))
+            verdict = "✓" if significant else "✗"
+            desc = "significant" if significant else "not significant"
+            insights.append(
+                f"{verdict} {label.capitalize()} is {desc} (effect size {effect_strength})."
+            )
+
+        top_cells = result.cell_means.stack().sort_values(ascending=False).head(3)
+        if not top_cells.empty:
+            formatted = ", ".join(
+                [f"{idx[0]} / {idx[1]}: {val:.2f}" for idx, val in top_cells.items()]
+            )
+            insights.append(f"Highest mean combinations → {formatted}.")
+
+        return insights
+
+    @staticmethod
+    def generate_tukey_insights(result: TukeyHSDResult) -> List[str]:
+        insights: List[str] = []
+        if not result.significant_pairs:
+            insights.append("Tukey's HSD found no pairwise differences after correction.")
+            return insights
+
+        insights.append(
+            f"Tukey's HSD identified {len(result.significant_pairs)} significant pair(s) for '{result.group_col}'."
+        )
+
+        for idx, (g1, g2) in enumerate(result.significant_pairs[:5], start=1):
+            insights.append(f"{idx}. {g1} vs {g2} shows a statistically significant difference.")
+
+        return insights
+
+    @staticmethod
+    def generate_levene_insights(result: LeveneResult) -> List[str]:
+        insights: List[str] = []
+        verdict = "⚠️" if result.significant else "✓"
+        desc = "variances differ" if result.significant else "variances appear equal"
+        insights.append(
+            f"{verdict} Levene's test indicates {desc} across '{result.group_col}' "
+            f"(F={result.f_statistic:.3f}, p={result.p_value:.4f})."
+        )
+
+        if result.effect_size is not None and not pd.isna(result.effect_size):
+            descriptor = InsightGenerator._describe_effect_size(result.effect_size)
+            insights.append(
+                f"Variance difference effect size is {descriptor} ({result.effect_size:.3f})."
+            )
+
         return insights
     
     @staticmethod
