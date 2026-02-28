@@ -1,193 +1,114 @@
 # Statistical Engine
 
-**A production-grade, domain-agnostic analytics platform that transforms raw business data into deep statistical insights through automation, interactive exploration, and intelligent reasoning.**
+A data analysis platform built with Python and Streamlit that helps you explore datasets, run statistical tests, and generate readable summaries — all from a browser-based interface. It connects to SQL Server databases or accepts file uploads (CSV/Excel), profiles the data automatically, and presents findings through interactive Plotly charts.
 
-## 🎯 Overview
+## What It Does
 
-This is not a dashboard. This is an **intelligence layer** that sits on top of your data infrastructure.
+The engine handles the repetitive parts of exploratory data analysis so you can focus on interpretation. Load a dataset and you immediately get:
 
-The AI Analytics Engine eliminates repetitive manual analysis, democratizes advanced statistics across teams, and provides rapid insight generation without requiring SQL or Python expertise.
+- A profile of every column — data types, completeness, distributions, outliers (IQR method), and quality flags like constant columns or high-cardinality text.
+- A correlation matrix across all numeric columns, with Pearson, Spearman, or Kendall options.
+- Linear regression, independent-samples t-tests, and one-way ANOVA, each returning structured result objects with p-values, effect sizes, and fit metrics.
+- Trend detection on sequential numeric data using ordinary least-squares regression with significance testing on the slope.
+- Plain-English narrative summaries generated from the statistical output — the `InsightGenerator` class translates things like correlation strength, model R², and group mean differences into sentences a non-technical reader can follow.
 
-### Core Capabilities
+None of this relies on machine learning or AI. The insights are produced by rule-based logic that maps statistical results to human-readable text using thresholds (e.g. |r| < 0.3 = "weak", Cohen's d < 0.2 = "negligible").
 
-- **Automated Exploratory Data Analysis** - Instant profiling, type detection, quality checks
-- **Statistical Analysis Engine** - Correlations, regression, hypothesis testing, trend detection
-- **Plain-English Insights** - Technical results translated into business narratives
-- **Interactive Visualizations** - Publication-quality charts with Plotly
-- **SQL Connectivity** - Direct connection to PostgreSQL, MySQL, SQLite databases
-- **Modular Architecture** - Clean separation of concerns, extensible design
-
-## 🏗️ Architecture
+## Project Structure
 
 ```
-ai-analytics-engine/
-├── app/                    # Streamlit UI layer
-│   └── main.py            # Application entry point
-├── core/                   # Analytics engines (business logic)
-│   ├── profiling.py       # Automated EDA and data profiling
-│   ├── statistics.py      # Statistical analysis methods
-│   ├── insights.py        # Plain-English insight generation
-│   └── visualizations.py  # Interactive Plotly charts
-├── db/                     # Database connectivity layer
-│   └── connection.py      # SQLAlchemy abstraction
-├── config/                 # Configuration management
-│   └── settings.py        # Environment-based config
-├── models/                 # Future ML models (placeholder)
-├── tests/                  # Comprehensive test suite
-│   ├── conftest.py        # Test fixtures
-│   ├── test_profiling.py  # Profiling tests
-│   └── test_statistics.py # Statistical tests
-└── pyproject.toml         # Poetry dependency management
+statistical-engine/
+├── app/
+│   └── main.py              # Streamlit UI — sidebar, tabs, session state
+├── core/
+│   ├── profiling.py          # Column and dataset profiling, outlier detection, quality checks
+│   ├── statistics.py         # Correlation, regression, t-test, ANOVA, trend detection
+│   ├── insights.py           # Translates statistical results into narrative text
+│   └── visualizations.py     # Plotly charts — histograms, heatmaps, scatter, time series, 3D
+├── db/
+│   ├── connection.py         # DatabaseClient wrapper around the SQL connection module
+│   ├── connect_to_sql.py     # pyodbc + SQLAlchemy connector for SQL Server (Trusted Connection)
+│   ├── query.py              # Read-only query validation and safe execution
+│   ├── loader.py             # Table loading with optional column selection and row limits
+│   └── introspection.py      # Schema introspection — list tables, describe columns, row counts
+├── config/
+│   └── settings.py           # Dataclass-based config loaded from environment variables
+├── models/                   # Placeholder for future forecasting/clustering work
+├── tests/
+│   ├── conftest.py           # Shared pytest fixtures (numeric, mixed, null, categorical DataFrames)
+│   ├── test_statistics.py    # Tests for correlation, regression, t-test, ANOVA, trend detection
+│   └── test_profiling.py     # Tests for type detection, column profiling, outlier detection, quality checks
+├── pyproject.toml            # Poetry project definition and dependencies
+├── .env.example              # Template for environment variables
+└── QUICKSTART.md             # Condensed setup and usage guide
 ```
 
-### Design Principles
+## Getting Started
 
-✅ **Domain-agnostic** - Works with any structured dataset  
-✅ **Separation of concerns** - UI ≠ Analytics ≠ Data Access  
-✅ **Testable** - 90+ unit tests with high coverage  
-✅ **Extensible** - Add new analyses without rewrites  
-✅ **Production-ready** - Enterprise-grade error handling, logging  
+You need Python 3.11 or later and Poetry 2.0+ for dependency management.
 
-## 🚀 Quick Start
-
-### Prerequisites
-
-- Python 3.11+
-- Poetry 2.0+ (for dependency management)
-
-### Installation
-
-1. **Clone the repository:**
 ```bash
+# Clone and enter the project
 git clone <repository-url>
-cd ai-analytics-engine
-```
+cd statistical-engine
 
-2. **Install dependencies with Poetry:**
-```bash
+# Install everything
 poetry install
-```
 
-3. **Run the application:**
-```bash
+# Launch the Streamlit app
 poetry run streamlit run app/main.py
 ```
 
-The application will open in your browser at `http://localhost:8501`.
+The app opens at `http://localhost:8501`. From the sidebar you can upload a CSV or Excel file, connect to a SQL Server database, or load one of the built-in sample datasets (Sales, Customer, or Random) to try things out immediately.
 
-## 📊 Usage
+## Connecting to a Database
 
-### Loading Data
-
-The platform supports multiple data sources:
-
-1. **CSV/Excel Upload** - Drag and drop files directly
-2. **SQL Database** - Connect to PostgreSQL, MySQL, SQLite
-3. **Sample Data** - Pre-loaded datasets for exploration
-
-### Analysis Workflow
-
-1. **Overview Tab** - Dataset summary, column types, quality metrics
-2. **Distributions Tab** - Histogram, box plots, statistical summaries
-3. **Relationships Tab** - Correlation matrices, scatter plots, pairwise analysis
-4. **Trends Tab** - Time series analysis, trend detection
-5. **Insights Tab** - AI-generated narratives and recommendations
-
-### Example: Analyzing Sales Data
-
-```python
-# Load sample sales data
-# Navigate to: Sidebar → Sample Data → Sales Data
-
-# Automated insights will include:
-# - Revenue distribution and outliers
-# - Correlation between units sold and revenue
-# - Regional performance comparisons
-# - Trend detection in time series
-# - Plain-English summary narrative
-```
-
-## 🔧 Configuration
-
-Create a `.env` file in the project root:
+The database layer is built around SQL Server using pyodbc with Windows Trusted Connection. Copy `.env.example` to `.env` and fill in your server details:
 
 ```env
-# Database Configuration
-DB_HOST=localhost
-DB_PORT=5432
-DB_NAME=analytics
-DB_USER=postgres
-DB_PASSWORD=your_password
-DB_DRIVER=postgresql
-
-# Application Settings
-APP_TITLE=AI Analytics Engine
-MAX_ROWS_DISPLAY=10000
-CORRELATION_THRESHOLD=0.3
-P_VALUE_THRESHOLD=0.05
+DB_HOST=your-server
+DB_PORT=1433
+DB_NAME=your-database
+DB_DRIVER=mssql+pyodbc
 ```
 
-## 🧪 Testing
+Once connected through the sidebar, you can browse available tables or run custom read-only SELECT queries. The query layer validates every statement before execution — it rejects anything containing DELETE, DROP, UPDATE, INSERT, or other write operations.
 
-Run the complete test suite:
+## Configuration
+
+All settings live in `config/settings.py` and are loaded from environment variables with sensible defaults. The main ones worth adjusting:
+
+- `CORRELATION_THRESHOLD` (default 0.3) — minimum |r| to flag a correlation as noteworthy.
+- `P_VALUE_THRESHOLD` (default 0.05) — significance cutoff used across all statistical tests.
+- `OUTLIER_IQR_MULTIPLIER` (default 1.5) — how aggressively outliers are flagged.
+- `MAX_ROWS_DISPLAY` (default 10,000) — caps how many rows the UI renders at once.
+
+## Running Tests
 
 ```bash
+# Full suite
 poetry run pytest tests/ -v
-```
 
-Run with coverage:
-
-```bash
+# With coverage
 poetry run pytest tests/ --cov=core --cov=db --cov-report=html
 ```
 
-## 📈 Roadmap
+Tests cover correlation analysis, linear regression, t-tests, ANOVA, trend detection, column type inference, outlier detection, dataset profiling, and data quality checks.
 
-### Phase 1 (Current)
-- ✅ Core profiling engine
-- ✅ Statistical analysis methods
-- ✅ Interactive Streamlit UI
-- ✅ Basic SQL connectivity
+## Extending the Engine
 
-### Phase 2 (Next)
-- 🔄 Automatic schema intelligence
-- 🔄 Proactive anomaly detection
-- 🔄 Natural language queries
-- 🔄 Key driver analysis
+The codebase is modular by design. Each layer has a clear responsibility:
 
-### Phase 3 (Future)
-- 📋 ML-based forecasting
-- 📋 Automated insight recommendations
-- 📋 Multi-table join suggestions
-- 📋 Collaborative annotations
+- To add a new statistical method, write a function in `core/statistics.py` that returns a dataclass result, then add a corresponding `generate_*_insights` method to `InsightGenerator` in `core/insights.py`.
+- To add a new chart type, create a function in `core/visualizations.py` that returns a `plotly.graph_objects.Figure`.
+- To surface a new analysis in the UI, wire it into the appropriate tab in `app/main.py`.
 
-## 🏢 Enterprise Features
+The `models/` directory is reserved for future work like time series forecasting, anomaly detection, and clustering — none of which is implemented yet.
 
-- **Connection Pooling** - Efficient database resource management
-- **Error Handling** - Graceful failures with user-friendly messages
-- **Data Quality Checks** - Automated detection of missing data, outliers, type issues
-- **Scalability** - Designed to handle large datasets (sampling strategies)
-- **Extensibility** - Plugin architecture for custom analyses
+## Dependencies
 
-## 🤝 Contributing
+Python, Streamlit, Pandas, NumPy, SciPy, scikit-learn, Plotly, SQLAlchemy, pyodbc, and Poetry for dependency management. The full list with version constraints is in `pyproject.toml`.
 
-This is an internal analytics product. For feature requests or bugs, contact the Data Engineering team.
+## License
 
-## 📄 License
-
-Internal use only. All rights reserved.
-
-## 🧠 Philosophy
-
-> "This should feel like having a senior data scientist continuously analyzing every dataset."
-
-We prioritize:
-- **Clarity over cleverness**
-- **Stability over shortcuts**
-- **Extensibility over quick hacks**
-
-Every design decision favors long-term maintainability and user trust.
-
----
-
-**Built with:** Python, Streamlit, Pandas, NumPy, SciPy, scikit-learn, Plotly, SQLAlchemy, Poetry
+Internal use only. For feature requests or bugs, contact the Data Engineering team.
