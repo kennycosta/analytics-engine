@@ -61,5 +61,5 @@ data/
 .DS_Store
 Thumbs.db
 
-# Streamlit
-.streamlit/
+# Streamlit secrets (never commit these)
+.streamlit/secrets.toml
