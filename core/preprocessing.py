@@ -19,6 +19,8 @@ Read before implementing:
   - Aitchison (1986) for compositional transforms
 """
 
+from ast import Param
+from calendar import c
 from dataclasses import dataclass, field
 from typing import Any, Dict, List, Literal, Mapping, Optional, Tuple
 from unittest import result
@@ -27,8 +29,8 @@ import numpy as np
 import pandas as pd
 from sklearn.impute import KNNImputer
 # from sqlalchemy import column, null
-from sklearn.preprocessing import LabelEncoder, TargetEncoder, OrdinalEncoder
-
+from sklearn.preprocessing import LabelEncoder, RobustScaler, TargetEncoder, OrdinalEncoder
+from sklearn.preprocessing import StandardScaler, MinMaxScaler
 # ---------------------------------------------------------------------------
 # Result dataclasses
 # ---------------------------------------------------------------------------
@@ -290,6 +292,7 @@ def encode_categorical(
             columns_encoded=columns,
             strategy=strategy, 
             new_columns=sorted(new_encoded_cols),
+            dropped_columns=dropped_cols,
             mapping={},
             summary = (f"One hot encoding {len(columns)} column(s) into"
                         f"{len(new_encoded_cols)} binary column(s)."
@@ -320,14 +323,40 @@ def encode_categorical(
         )
 
     elif strategy == "target":
-        target_encoder = TargetEncoder()
+        
         mapping={}
-
         for col in columns:
             mean_map = result_df.groupby(col)[target_col].mean()
             result_df[col] = result_df[col].map(mean_map)
+            mapping[col] = mean_map.to_dict()  # Store the mapping
 
+        return result_df , EncodingResult(
+            columns_encoded=columns, 
+            strategy=strategy, 
+            new_columns=[],
+            dropped_columns=[],
+            mapping = mapping,
+            summary=f"Target encoded {len(columns)} column(s)."
+            
+        )
+    
 
+    elif strategy == "ordinal":
+        mapping={}
+        for col in columns:
+            ordered_list = ordinal_order[col]
+            col_mapping = {cat: idx for idx, cat in enumerate(ordered_list)}
+            result_df[col] = result_df[col].map(col_mapping)
+            mapping[col] = col_mapping
+
+        return result_df, EncodingResult(
+            columns_encoded=columns,
+            strategy=strategy,
+            dropped_columns=[],
+            mapping = mapping,
+            summary = f"Ordinal encoded {len(columns)} column(s) using user-specified orderings."
+        )
+            
 
 def scale_features(
     df: pd.DataFrame,
@@ -352,7 +381,29 @@ def scale_features(
         log       → log(x+1) transform. Useful for right-skewed distributions.
                     Check that all values are non-negative first.
     """
-    pass
+    result_df = df.copy()
+
+    columns = result_df.select_dtypes(include="number").columns.tolist()
+
+    if strategy =="standard":
+        scaler = StandardScaler()
+        params : Dict[str, Dict[str, float]] = {}
+        for col in columns:
+            result_df[col] = scaler.fit_transform(result_df[[col]])
+            params[col] = {"mean" : result_df[col].mean() , "standard deviation" : result_df[col].std()}
+
+    elif strategy =="minmax":
+        scaler = MinMaxScaler()
+        params = {}
+        for col in columns:
+            result_df[col] = scaler.fit_transform(result_df[[col]])
+            params[col] = {"max":result_df[col].max(), "min": result_df[col].max()}
+
+    elif strategy =="robust":
+        scaler = RobustScaler(quantile_range=(25.0, 75.0))
+        params={}
+        for col in columns:
+            result_df[col] = scaler.fit_transform(result_df[[col]])
 
 
 def handle_outliers(
